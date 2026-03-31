@@ -1,0 +1,3 @@
+[submodule "mindcraft"]
+	path = mindcraft
+	url = https://github.com/durhamer/mindcraft.git
