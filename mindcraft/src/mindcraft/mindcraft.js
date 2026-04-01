@@ -8,6 +8,10 @@ let connected = false;
 let agent_processes = {};
 let agent_count = 0;
 let mindserver_port = 8080;
+let launchSettings = null;
+
+export function setLaunchSettings(settings) { launchSettings = settings; }
+export function getLaunchSettings() { return launchSettings; }
 
 export async function init(host_public=false, port=8080, auto_open_ui=true) {
     if (connected) {

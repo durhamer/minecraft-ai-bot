@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mindcraft — Agent Config</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --radius: 8px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 16px; font-weight: 600; color: var(--text); }
+  header .sep { color: var(--border); }
+  header .page-title { font-size: 16px; color: var(--muted); }
+  header a.back {
+    margin-left: auto;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: color .15s, border-color .15s;
+  }
+  header a.back:hover { color: var(--text); border-color: var(--muted); }
+
+  /* ── Restart banner ── */
+  #restartBanner {
+    display: none;
+    background: #2d2000;
+    border-bottom: 1px solid var(--yellow);
+    color: var(--yellow);
+    padding: 8px 24px;
+    font-size: 13px;
+    text-align: center;
+  }
+  #restartBanner.show { display: block; }
+
+  /* ── Main ── */
+  main {
+    max-width: 860px;
+    margin: 32px auto;
+    padding: 0 24px;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .toolbar h2 { font-size: 18px; font-weight: 600; }
+  .toolbar .count { font-size: 13px; color: var(--muted); margin-left: 8px; }
+
+  /* ── Buttons ── */
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 14px;
+    transition: opacity .15s, background .15s;
+  }
+  button:hover { opacity: .85; }
+  .btn-primary { background: var(--accent); color: #0d1117; }
+  .btn-danger  { background: transparent; color: var(--red); border: 1px solid var(--red); }
+  .btn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+  .btn-green   { background: var(--green); color: #0d1117; }
+
+  /* ── Profile cards ── */
+  #profileList { display: flex; flex-direction: column; gap: 10px; }
+
+  .profile-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color .15s;
+  }
+  .profile-card:hover { border-color: var(--muted); }
+  .profile-card.disabled { opacity: .5; }
+
+  .card-info { flex: 1; min-width: 0; }
+  .card-name { font-size: 15px; font-weight: 600; }
+  .card-model { font-size: 12px; color: var(--accent); margin-top: 2px; }
+  .card-path  { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: monospace; }
+
+  .card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  /* ── Toggle switch ── */
+  .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+  }
+  .slider::before {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    left: 2px; top: 2px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: transform .2s, background .2s;
+  }
+  .toggle input:checked + .slider { background: #1a3a1a; border-color: var(--green); }
+  .toggle input:checked + .slider::before { transform: translateX(18px); background: var(--green); }
+
+  /* ── Modal ── */
+  #modalOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #modalOverlay.open { display: flex; }
+
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: 600px;
+    max-width: 95vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0,0,0,.5);
+  }
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-header h3 { font-size: 15px; font-weight: 600; }
+  .modal-header button { background: none; color: var(--muted); font-size: 18px; padding: 0 4px; }
+  .modal-header button:hover { color: var(--text); }
+
+  .modal-body { padding: 16px 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .field input:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    min-height: 260px;
+    resize: vertical;
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    font-size: 13px;
+    z-index: 200;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity .2s, transform .2s;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error   { border-color: var(--red);   color: var(--red);   }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 60px 0;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mindcraft</h1>
+  <span class="sep">/</span>
+  <span class="page-title">Agent Config</span>
+  <a class="back" href="/">← Dashboard</a>
+</header>
+
+<div id="restartBanner">
+  ⚠ settings.js was modified — restart <code>node main.js</code> to apply changes
+</div>
+
+<main>
+  <div class="toolbar">
+    <div>
+      <h2 style="display:inline">Profiles</h2>
+      <span class="count" id="countLabel"></span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-green" id="connectBtn" onclick="connectBots()">▶ Connect Bots</button>
+      <button class="btn-primary" onclick="openAddModal()">+ Add Agent</button>
+    </div>
+  </div>
+  <div id="profileList"></div>
+</main>
+
+<!-- Modal -->
+<div id="modalOverlay" onclick="overlayClick(event)">
+  <div id="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Add Agent</h3>
+      <button onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" id="pathField">
+        <label>Profile path (relative to mindcraft root)</label>
+        <input id="modalPath" placeholder="e.g. ./profiles/mybot.json">
+      </div>
+      <div class="field">
+        <label>Profile JSON</label>
+        <textarea id="modalJson" spellcheck="false"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-green" id="modalSaveBtn" onclick="saveModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const socket = io();
+let profiles = [];
+let editingPath = null; // null = add mode, string = edit mode
+
+// ── Socket ──────────────────────────────────────────────
+socket.on('connect', loadProfiles);
+
+function loadProfiles() {
+  socket.emit('get-profiles', (res) => {
+    if (res.error) return showToast(res.error, 'error');
+    profiles = res.profiles;
+    renderProfiles();
+  });
+}
+
+// ── Render ───────────────────────────────────────────────
+function renderProfiles() {
+  const list = document.getElementById('profileList');
+  const count = document.getElementById('countLabel');
+  const enabled = profiles.filter(p => p.enabled).length;
+  count.textContent = `${enabled} active / ${profiles.length} total`;
+
+  if (profiles.length === 0) {
+    list.innerHTML = '<div class="empty">No profiles configured in settings.js</div>';
+    return;
+  }
+
+  list.innerHTML = profiles.map(p => `
+    <div class="profile-card ${p.enabled ? '' : 'disabled'}" id="card-${CSS.escape(p.path)}">
+      <label class="toggle" title="${p.enabled ? 'Disable' : 'Enable'}">
+        <input type="checkbox" ${p.enabled ? 'checked' : ''}
+          onchange="toggleProfile('${esc(p.path)}', this.checked)">
+        <span class="slider"></span>
+      </label>
+      <div class="card-info">
+        <div class="card-name">${esc(p.name)}</div>
+        <div class="card-model">${esc(p.model)}</div>
+        <div class="card-path">${esc(p.path)}</div>
+      </div>
+      <div class="card-actions">
+        <button class="btn-ghost" onclick="openEditModal('${esc(p.path)}')">Edit</button>
+        <button class="btn-danger" onclick="deleteProfile('${esc(p.path)}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Profile actions ──────────────────────────────────────
+function toggleProfile(profilePath, enabled) {
+  socket.emit('set-profile-enabled', profilePath, enabled, (res) => {
+    if (res.error) { showToast(res.error, 'error'); loadProfiles(); return; }
+    showRestartBanner();
+    showToast(`${profilePath} ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    const p = profiles.find(x => x.path === profilePath);
+    if (p) {
+      p.enabled = enabled;
+      const card = document.getElementById('card-' + CSS.escape(profilePath));
+      if (card) card.className = 'profile-card ' + (enabled ? '' : 'disabled');
+    }
+  });
+}
+
+function deleteProfile(profilePath) {
+  if (!confirm(`Remove "${profilePath}" from settings.js?\n\nThe JSON file will NOT be deleted.`)) return;
+  socket.emit('delete-profile', profilePath, (res) => {
+    if (res.error) return showToast(res.error, 'error');
+    showRestartBanner();
+    showToast('Removed from settings.js', 'success');
+    loadProfiles();
+  });
+}
+
+// ── Modal ────────────────────────────────────────────────
+const NEW_PROFILE_TEMPLATE = JSON.stringify({
+  name: "NewBot",
+  model: "claude-sonnet-4-6"
+}, null, 4);
+
+function openAddModal() {
+  editingPath = null;
+  document.getElementById('modalTitle').textContent = 'Add Agent';
+  document.getElementById('modalPath').value = '';
+  document.getElementById('modalPath').readOnly = false;
+  document.getElementById('pathField').style.display = '';
+  document.getElementById('modalJson').value = NEW_PROFILE_TEMPLATE;
+  document.getElementById('modalSaveBtn').textContent = 'Add';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function openEditModal(profilePath) {
+  editingPath = profilePath;
+  document.getElementById('modalTitle').textContent = 'Edit Profile';
+  document.getElementById('modalPath').value = profilePath;
+  document.getElementById('modalPath').readOnly = true;
+  document.getElementById('pathField').style.display = '';
+  document.getElementById('modalJson').value = 'Loading...';
+  document.getElementById('modalSaveBtn').textContent = 'Save';
+  document.getElementById('modalOverlay').classList.add('open');
+
+  socket.emit('get-profile-json', profilePath, (res) => {
+    if (res.error) { showToast(res.error, 'error'); closeModal(); return; }
+    document.getElementById('modalJson').value = res.content;
+  });
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function overlayClick(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+function saveModal() {
+  const jsonContent = document.getElementById('modalJson').value;
+  try { JSON.parse(jsonContent); } catch (e) {
+    showToast('Invalid JSON: ' + e.message, 'error'); return;
+  }
+
+  if (editingPath) {
+    // Edit mode — only save JSON, no settings.js change
+    socket.emit('save-profile-json', editingPath, jsonContent, (res) => {
+      if (res.error) return showToast(res.error, 'error');
+      showToast('Profile saved', 'success');
+      closeModal();
+      loadProfiles();
+    });
+  } else {
+    // Add mode
+    const profilePath = document.getElementById('modalPath').value.trim();
+    if (!profilePath) { showToast('Path is required', 'error'); return; }
+    socket.emit('add-profile', profilePath, jsonContent, (res) => {
+      if (res.error) return showToast(res.error, 'error');
+      showRestartBanner();
+      showToast('Agent added to settings.js', 'success');
+      closeModal();
+      loadProfiles();
+    });
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function showRestartBanner() {
+  document.getElementById('restartBanner').classList.add('show');
+}
+
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 3000);
+}
+
+function connectBots() {
+  const btn = document.getElementById('connectBtn');
+  btn.textContent = 'Connecting...';
+  btn.disabled = true;
+  socket.emit('launch-profiles', (res) => {
+    btn.textContent = '▶ Connect Bots';
+    btn.disabled = false;
+    if (res.error) { showToast(res.error, 'error'); return; }
+    const failed = res.results.filter(r => !r.success);
+    if (failed.length === 0) {
+      showToast(`Connected ${res.results.length} bot(s)`, 'success');
+    } else {
+      showToast(`${failed.length} failed: ${failed.map(r => r.name).join(', ')}`, 'error');
+    }
+  });
+}
+
+// Keyboard: Escape closes modal
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>

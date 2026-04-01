@@ -4,7 +4,7 @@ import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as mindcraft from './mindcraft.js';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Mindserver is:
@@ -18,6 +18,58 @@ const agent_connections = {};
 const agent_listeners = [];
 
 const settings_spec = JSON.parse(readFileSync(path.join(__dirname, 'public/settings_spec.json'), 'utf8'));
+
+const SETTINGS_PATH = path.join(__dirname, '../../settings.js');
+
+function parseProfiles() {
+    const content = readFileSync(SETTINGS_PATH, 'utf8');
+    const match = content.match(/"profiles"\s*:\s*\[([\s\S]*?)\]/);
+    if (!match) return [];
+    const profiles = [];
+    for (const line of match[1].split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const commented = trimmed.startsWith('//');
+        const pathMatch = trimmed.match(/"([^"]+\.json)"/);
+        if (!pathMatch) continue;
+        const profilePath = pathMatch[1];
+        let name = profilePath, model = '';
+        try {
+            const json = JSON.parse(readFileSync(path.join(__dirname, '../../', profilePath), 'utf8'));
+            name = json.name || profilePath;
+            model = json.model || '';
+        } catch (e) {}
+        profiles.push({ path: profilePath, name, model, enabled: !commented });
+    }
+    return profiles;
+}
+
+function setProfileEnabled(profilePath, enable) {
+    const escaped = profilePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let content = readFileSync(SETTINGS_PATH, 'utf8');
+    if (enable) {
+        content = content.replace(new RegExp(`([ \\t]+)//[ \\t]*("${escaped}",?)`, 'g'), '$1$2');
+    } else {
+        content = content.replace(new RegExp(`([ \\t]+)("${escaped}",?)`, 'g'), '$1// $2');
+    }
+    writeFileSync(SETTINGS_PATH, content, 'utf8');
+}
+
+function deleteProfileFromSettings(profilePath) {
+    const escaped = profilePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let content = readFileSync(SETTINGS_PATH, 'utf8');
+    content = content.replace(new RegExp(`[ \\t]*(?://[ \\t]*)?("${escaped}",?)[^\\n]*\\n`), '');
+    writeFileSync(SETTINGS_PATH, content, 'utf8');
+}
+
+function addProfileToSettings(profilePath) {
+    let content = readFileSync(SETTINGS_PATH, 'utf8');
+    content = content.replace(
+        /("profiles"\s*:\s*\[)([\s\S]*?)([ \t]*\],)/,
+        (m, open, body, close) => `${open}${body}        "${profilePath}",\n    ${close}`
+    );
+    writeFileSync(SETTINGS_PATH, content, 'utf8');
+}
 
 class AgentConnection {
     constructor(settings, viewer_port) {
@@ -214,6 +266,67 @@ export function createMindServer(host_public = false, port = 8080) {
 
         socket.on('listen-to-agents', () => {
             addListener(socket);
+        });
+
+        // Launch all enabled profiles from settings.js
+        socket.on('launch-profiles', async (callback) => {
+            const base = mindcraft.getLaunchSettings();
+            if (!base) { callback({ error: 'Base settings not available' }); return; }
+            const profiles = parseProfiles().filter(p => p.enabled);
+            if (profiles.length === 0) { callback({ error: 'No enabled profiles' }); return; }
+            const results = [];
+            for (const p of profiles) {
+                try {
+                    const profileJson = JSON.parse(readFileSync(path.join(__dirname, '../../', p.path), 'utf8'));
+                    const s = { ...base, profile: profileJson };
+                    const result = await mindcraft.createAgent(s);
+                    results.push({ name: p.name, ...result });
+                } catch (e) {
+                    results.push({ name: p.name, success: false, error: e.message });
+                }
+            }
+            agentsStatusUpdate();
+            callback({ results });
+        });
+
+        // Persistent profile management (read/write settings.js)
+        socket.on('get-profiles', (callback) => {
+            try { callback({ profiles: parseProfiles() }); }
+            catch (e) { callback({ error: e.message }); }
+        });
+
+        socket.on('set-profile-enabled', (profilePath, enabled, callback) => {
+            try { setProfileEnabled(profilePath, enabled); callback({ success: true }); }
+            catch (e) { callback({ error: e.message }); }
+        });
+
+        socket.on('delete-profile', (profilePath, callback) => {
+            try { deleteProfileFromSettings(profilePath); callback({ success: true }); }
+            catch (e) { callback({ error: e.message }); }
+        });
+
+        socket.on('get-profile-json', (profilePath, callback) => {
+            try {
+                const content = readFileSync(path.join(__dirname, '../../', profilePath), 'utf8');
+                callback({ content });
+            } catch (e) { callback({ error: e.message }); }
+        });
+
+        socket.on('save-profile-json', (profilePath, content, callback) => {
+            try {
+                JSON.parse(content);
+                writeFileSync(path.join(__dirname, '../../', profilePath), content, 'utf8');
+                callback({ success: true });
+            } catch (e) { callback({ error: e.message }); }
+        });
+
+        socket.on('add-profile', (profilePath, jsonContent, callback) => {
+            try {
+                JSON.parse(jsonContent);
+                writeFileSync(path.join(__dirname, '../../', profilePath), jsonContent, 'utf8');
+                addProfileToSettings(profilePath);
+                callback({ success: true });
+            } catch (e) { callback({ error: e.message }); }
         });
     });
 

@@ -18,6 +18,11 @@ function parseArguments() {
             type: 'string',
             describe: 'Task ID to execute'
         })
+        .option('server-only', {
+            type: 'boolean',
+            describe: 'Start MindServer only, without connecting agents (connect later via dashboard)',
+            default: false
+        })
         .help()
         .alias('help', 'h')
         .parse();
@@ -72,9 +77,12 @@ if (process.env.SETTINGS_JSON) {
 
 
 Mindcraft.init(false, settings.mindserver_port, settings.auto_open_ui);
+Mindcraft.setLaunchSettings(settings);
 
-for (let profile of settings.profiles) {
-    const profile_json = JSON.parse(readFileSync(profile, 'utf8'));
-    settings.profile = profile_json;
-    Mindcraft.createAgent(settings);
+if (!args.serverOnly) {
+    for (let profile of settings.profiles) {
+        const profile_json = JSON.parse(readFileSync(profile, 'utf8'));
+        settings.profile = profile_json;
+        Mindcraft.createAgent(settings);
+    }
 }
