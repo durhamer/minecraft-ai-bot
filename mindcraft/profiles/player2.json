@@ -1,0 +1,6 @@
+{
+    "name": "Player2Bot",
+    "model": "vllm/gemini-flash",
+    "url": "http://127.0.0.1:4315/v1",
+    "embedding": "none"
+}

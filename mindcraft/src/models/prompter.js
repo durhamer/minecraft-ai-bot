@@ -55,11 +55,11 @@ export class Prompter {
         if (this.profile.max_tokens)
             max_tokens = this.profile.max_tokens;
 
-        let chat_model_profile = selectAPI(this.profile.model);
+        let chat_model_profile = selectAPI({model: this.profile.model, url: this.profile.url, params: this.profile.params});
         this.chat_model = createModel(chat_model_profile);
 
         if (this.profile.code_model) {
-            let code_model_profile = selectAPI(this.profile.code_model);
+            let code_model_profile = selectAPI({model: this.profile.code_model, url: this.profile.url, params: this.profile.params});
             this.code_model = createModel(code_model_profile);
         }
         else {
@@ -67,7 +67,7 @@ export class Prompter {
         }
 
         if (this.profile.vision_model) {
-            let vision_model_profile = selectAPI(this.profile.vision_model);
+            let vision_model_profile = selectAPI({model: this.profile.vision_model, url: this.profile.url, params: this.profile.params});
             this.vision_model = createModel(vision_model_profile);
         }
         else {

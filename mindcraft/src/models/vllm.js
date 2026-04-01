@@ -26,9 +26,9 @@ export class VLLM {
         let messages = [{ 'role': 'system', 'content': systemMessage }].concat(turns);
         let model = this.model_name || "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B";  
         
-        if (model.includes('deepseek') || model.includes('qwen')) {
+        if (model.includes('deepseek') || model.includes('qwen') || model.includes('gemini')) {
             messages = strictFormat(messages);
-        } 
+        }
 
         const pack = {
             model: model,
@@ -39,8 +39,8 @@ export class VLLM {
         let res = null;
         try {
             console.log('Awaiting openai api response...')
-            // console.log('Messages:', messages);
-            // todo set max_tokens, temperature, top_p, etc. in pack
+            console.log('[VLLM DEBUG] pack JSON length:', JSON.stringify(pack).length);
+            console.log('[VLLM DEBUG] messages count:', messages.length, 'roles:', messages.map(m => m.role));
             let completion = await this.vllm.chat.completions.create(pack);
             if (completion.choices[0].finish_reason == 'length')
                 throw new Error('Context length exceeded');
@@ -52,6 +52,8 @@ export class VLLM {
                 console.log('Context length exceeded, trying again with shorter context.');
                 return await this.sendRequest(turns.slice(1), systemMessage, stop_seq);
             } else {
+                console.log('[VLLM ERROR] status:', err.status, 'message:', err.message);
+                console.log('[VLLM ERROR] response headers:', err.headers);
                 console.log(err);
                 res = 'My brain disconnected, try again.';
             }
