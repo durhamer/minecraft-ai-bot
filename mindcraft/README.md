@@ -1,3 +1,31 @@
+# 本地開發備忘
+
+## 環境
+- macOS M2 Pro / Node.js v22.11.0（請勿升級，原生模組有 ABI 衝突問題）
+- Java 17 (Temurin) / Minecraft 1.21.4 LAN World
+
+## 快速啟動
+1. `keys.json` 填入 API 金鑰（勿 commit）
+2. Minecraft 開啟 LAN，port `55916`
+3. `node main.js`
+
+## 設定檔說明
+
+### 換語言模型
+修改 `andy.json` 的 `model` 欄位，或在 `settings.js` 的 `profiles` 換成其他 profile 檔（`profiles/claude.json`、`profiles/gpt.json` 等）。
+
+### 兩個不同的 profile 概念
+| 設定 | 位置 | 控制什麼 |
+|---|---|---|
+| `profiles` | `settings.js` | 要啟動哪些 bot，主要差異是使用哪個 LLM |
+| `base_profile` | `settings.js` | bot 的行為模式（survival / assistant / creative / god_mode） |
+
+### 優先級
+個體 profile (`andy.json`) > `base_profile` > `_default.json`
+個體 profile 有設定的欄位，base profile 不會覆蓋。
+
+---
+
 <h1 align="center">🧠mindcraft⛏️</h1>
 <h1 align="center">
   <a href="https://trendshift.io/repositories/9163" target="_blank"><img src="https://trendshift.io/api/badge/repositories/9163" alt="kolbytn%2Fmindcraft | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
